@@ -137,6 +137,7 @@ ArrayList<Pelanggan> daftarPelanggan = new ArrayList<>();
 2. Jalankan class **Main.java**.
 3. Program akan menampilkan menu utama.
 
+
 Contoh tampilan menu:
 ![menu laundry.png](FotoLaporanFoundry/menu%20laundry.png)
 
