@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Foundry Laundry — Pelanggan</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+    .search-bar input { flex: 1; }
+    .info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+                padding: 16px 20px; margin-bottom: 16px; display: none; }
+    .info-box.show { display: block; }
+    .info-box .info-nama { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .info-box .info-detail { font-size: 13px; color: var(--muted); }
+    .diskon-badge { background: rgba(78,245,200,.15); color: var(--accent2); border: 1px solid var(--accent2);
+                    border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">FOUNDRY<span>.</span></div>
+  <div class="logo-sub">Laundry System</div>
+  <a href="index.html"     class="nav-item"><span class="nav-icon"></span> Dashboard</a>
+  <a href="pelanggan.html" class="nav-item active"><span class="nav-icon"></span> Pelanggan</a>
+  <a href="pesanan.html"   class="nav-item"><span class="nav-icon"></span> Pesanan</a>
+  <div class="sidebar-bottom">
+    <button class="btn btn-danger btn-sm" onclick="logout()" style="width:100%;"> Logout</button>
+    <div style="margin-top:8px;">Foundry</div>
+  </div>
+</aside>
+
+<main class="main fade-in">
+  <div class="page-header">
+    <h1 class="page-title">Data <span>Pelanggan</span></h1>
+  </div>
+
+  <!-- CARI PELANGGAN BY NOMOR HP (pakai cariByNoHp) -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Cari Pelanggan by Nomor HP</span>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="cari-nohp" placeholder="Masukkan nomor HP, contoh: 081234567890"
+             onkeydown="if(event.key==='Enter') cariByNoHp()"/>
+      <button class="btn btn-primary" onclick="cariByNoHp()">Cari</button>
+      <button class="btn btn-ghost"   onclick="resetCari()">Reset</button>
+    </div>
+    <!-- Hasil pencarian cariByNoHp -->
+    <div class="info-box" id="hasil-cari">
+      <div class="info-nama" id="cari-nama">—</div>
+      <div class="info-detail" id="cari-detail">—</div>
+    </div>
+  </div>
+
+  <!-- FORM TAMBAH / EDIT -->
+  <div class="card" id="form-card">
+    <div class="card-head">
+      <span class="card-title" id="form-title">Tambah Pelanggan</span>
+      <button class="btn btn-ghost btn-sm" onclick="resetForm()">Reset</button>
+    </div>
+    <div class="form-grid">
+      <input type="hidden" id="p-id"/>
+
+      <div class="form-group">
+        <label>Nama Lengkap</label>
+        <input type="text" id="p-nama" placeholder="contoh: Budi Santoso"/>
+      </div>
+
+      <div class="form-group">
+        <label>Nomor HP</label>
+        <input type="text" id="p-nohp" placeholder="contoh: 081234567890"/>
+      </div>
+
+      <div class="form-group">
+        <label>Alamat</label>
+        <input type="text" id="p-alamat" placeholder="contoh: Jl. Merdeka No. 1"/>
+      </div>
+
+      <div class="form-group">
+        <label>Status</label>
+        <select id="p-status">
+          <option value="Biasa">Biasa</option>
+          <option value="VIP">VIP (diskon 10%)</option>
+        </select>
+      </div>
+
+      <div class="form-full" style="display:flex; gap:12px;">
+        <button class="btn btn-primary" onclick="simpan()">Simpan</button>
+        <button class="btn btn-ghost"   onclick="resetForm()">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABEL PELANGGAN -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Daftar Pelanggan</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+        <tr>
+          <th>ID</th><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Status</th><th>Diskon</th><th>Aksi</th>
+        </tr>
+        </thead>
+        <tbody id="tbl-pelanggan"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = 'http://localhost:8080/api';
+  const token = localStorage.getItem('foundry_token');
+  if (!token) window.location.href = 'login.html';
+
+  function authHeader() { return { 'Authorization': 'Bearer ' + token }; }
+  function logout() { localStorage.removeItem('foundry_token'); window.location.href = 'login.html'; }
+
+  function toast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast ' + type + ' show';
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // ===== FITUR BARU: Cari pelanggan by nomor HP (gunakan cariByNoHp dari backend) =====
+  async function cariByNoHp() {
+    const noHp = document.getElementById('cari-nohp').value.trim();
+    if (!noHp) { toast('Masukkan nomor HP terlebih dahulu!', 'error'); return; }
+
+    try {
+      const res = await fetch(API + '/pelanggan/cari?noHp=' + encodeURIComponent(noHp), {
+        headers: authHeader()
+      }).then(r => r.json());
+
+      const box = document.getElementById('hasil-cari');
+      if (!res.sukses) {
+        document.getElementById('cari-nama').textContent   = '❌ Tidak ditemukan';
+        document.getElementById('cari-detail').textContent = res.pesan;
+        box.classList.add('show');
+        return;
+      }
+
+      // Tampilkan hasil — termasuk kategori (getKategori()) dan diskon (getDiskon())
+      const diskonInfo = res.diskon > 0 ? ` <span class="diskon-badge">Diskon ${res.diskon}%</span>` : '';
+      document.getElementById('cari-nama').innerHTML  = `✅ ${res.nama}${diskonInfo}`;
+      document.getElementById('cari-detail').innerHTML =
+        `ID: <strong>${res.id}</strong> &nbsp;|&nbsp; No HP: <strong>${res.noHp}</strong> &nbsp;|&nbsp;` +
+        `Alamat: ${res.alamat} &nbsp;|&nbsp; Kategori: <strong>${res.kategori}</strong> &nbsp;|&nbsp;` +
+        `Status: ${res.status} &nbsp;` +
+        `<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick='isiFormDariCari(${JSON.stringify(res)})'>Edit</button>`;
+      box.classList.add('show');
+
+    } catch(e) {
+      toast('Gagal menghubungi server.', 'error');
+    }
+  }
+
+  function isiFormDariCari(p) {
+    document.getElementById('p-id').value     = p.id;
+    document.getElementById('p-nama').value   = p.nama;
+    document.getElementById('p-nohp').value   = p.noHp;
+    document.getElementById('p-alamat').value = p.alamat;
+    document.getElementById('p-status').value = p.kategori === 'VIP' ? 'VIP' : 'Biasa';
+    document.getElementById('form-title').textContent = 'Edit Pelanggan — ' + p.nama;
+    document.getElementById('form-card').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function resetCari() {
+    document.getElementById('cari-nohp').value = '';
+    document.getElementById('hasil-cari').classList.remove('show');
+  }
+
+  async function load() {
+    const data = await fetch(API + '/pelanggan', { headers: authHeader() }).then(r => r.json());
+    const tbody = document.getElementById('tbl-pelanggan');
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">👤</div>Belum ada pelanggan</div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(p => {
+      // Tampilkan diskon dari getDiskon() yang sudah diekspos backend
+      const diskonCell = p.diskon > 0
+        ? `<span class="diskon-badge">-${p.diskon}%</span>`
+        : `<span style="color:var(--muted);font-size:12px;">—</span>`;
+
+      return `
+      <tr>
+        <td><code>${p.id}</code></td>
+        <td>${p.nama}</td>
+        <td>${p.noHp}</td>
+        <td>${p.alamat}</td>
+        <td><span class="badge ${p.status.startsWith('VIP') ? 'badge-vip' : 'badge-biasa'}">${p.status}</span></td>
+        <td>${diskonCell}</td>
+        <td>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" onclick='edit(${JSON.stringify(p)})'>Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="hapus('${p.id}')">Hapus</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function edit(p) {
+    document.getElementById('p-id').value     = p.id;
+    document.getElementById('p-nama').value   = p.nama;
+    document.getElementById('p-nohp').value   = p.noHp;
+    document.getElementById('p-alamat').value = p.alamat;
+    document.getElementById('p-status').value = p.status.startsWith('VIP') ? 'VIP' : 'Biasa';
+    document.getElementById('form-title').textContent = 'Edit Pelanggan — ' + p.nama;
+    document.getElementById('form-card').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function resetForm() {
+    document.getElementById('p-id').value     = '';
+    document.getElementById('p-nama').value   = '';
+    document.getElementById('p-nohp').value   = '';
+    document.getElementById('p-alamat').value = '';
+    document.getElementById('p-status').value = 'Biasa';
+    document.getElementById('form-title').textContent = 'Tambah Pelanggan';
+  }
+
+  async function simpan() {
+    const id     = document.getElementById('p-id').value;
+    const nama   = document.getElementById('p-nama').value.trim();
+    const noHp   = document.getElementById('p-nohp').value.trim();
+    const alamat = document.getElementById('p-alamat').value.trim();
+    const status = document.getElementById('p-status').value;
+
+    if (!nama || !noHp || !alamat) { toast('Semua field wajib diisi!', 'error'); return; }
+
+    const isEdit = id !== '';
+    const res = await fetch(API + '/pelanggan', {
+      method: isEdit ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ id, nama, noHp, alamat, status })
+    }).then(r => r.json());
+
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    if (res.sukses) { resetForm(); load(); }
+  }
+
+  async function hapus(id) {
+    if (!confirm('Hapus pelanggan ' + id + '?')) return;
+    const res = await fetch(API + '/pelanggan?id=' + id, {
+      method: 'DELETE', headers: authHeader()
+    }).then(r => r.json());
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    load();
+  }
+
+  load();
+</script>
+</body>
+</html>

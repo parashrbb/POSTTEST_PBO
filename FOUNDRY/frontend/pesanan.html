@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Foundry Laundry — Pesanan</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .cari-hp-wrap { display: flex; gap: 10px; margin-bottom: 16px; }
+    .cari-hp-wrap input { flex: 1; }
+
+    /* Panel hasil pencarian by HP */
+    .hp-result-panel { display: none; background: var(--surface); border: 1px solid var(--border);
+                        border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .hp-result-panel.show { display: block; }
+    .hp-result-nama { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .hp-result-sub  { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+
+    .hp-pesanan-list { display: flex; flex-direction: column; gap: 10px; }
+    .hp-pesanan-item { background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+                        padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .hp-pesanan-item .pi-id   { font-family: monospace; font-size: 12px; color: var(--muted); min-width: 60px; }
+    .hp-pesanan-item .pi-info { flex: 1; font-size: 14px; }
+    .hp-pesanan-item .pi-harga{ font-weight: 600; color: var(--accent); font-size: 14px; }
+    .empty-hp { color: var(--muted); font-size: 14px; padding: 12px 0; }
+
+    /* Modal detail pesanan */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+                     align-items: center; justify-content: center; z-index: 200; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+                  padding: 28px; min-width: 340px; max-width: 480px; width: 90%; }
+    .modal-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .modal-row { display: flex; justify-content: space-between; padding: 8px 0;
+                  border-bottom: 1px solid var(--border); font-size: 14px; }
+    .modal-row:last-of-type { border-bottom: none; }
+    .modal-row .lbl { color: var(--muted); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">FOUNDRY<span>.</span></div>
+  <div class="logo-sub">Laundry System</div>
+  <a href="index.html"     class="nav-item"><span class="nav-icon"></span> Dashboard</a>
+  <a href="pelanggan.html" class="nav-item"><span class="nav-icon"></span> Pelanggan</a>
+  <a href="pesanan.html"   class="nav-item active"><span class="nav-icon"></span> Pesanan</a>
+  <div class="sidebar-bottom">
+    <button class="btn btn-danger btn-sm" onclick="logout()" style="width:100%;"> Logout</button>
+    <div style="margin-top:8px;">Foundry</div>
+  </div>
+</aside>
+
+<main class="main fade-in">
+  <div class="page-header">
+    <h1 class="page-title">Data <span>Pesanan</span></h1>
+  </div>
+
+  <!-- ===================================================== -->
+  <!-- FITUR BARU: Cari pesanan by Nomor HP (cariByNoHp)     -->
+  <!-- Owner cukup ketik No HP → langsung muncul pesananya   -->
+  <!-- → langsung bisa klik "Selesaikan"                      -->
+  <!-- ===================================================== -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Cari & Selesaikan Pesanan by Nomor HP</span>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+      Masukkan nomor HP pelanggan untuk menemukan semua pesanannya dan langsung menandai selesai.
+    </p>
+    <div class="cari-hp-wrap">
+      <input type="text" id="hp-input" placeholder="contoh: 081234567890"
+             onkeydown="if(event.key==='Enter') cariPesananByNoHp()"/>
+      <button class="btn btn-primary" onclick="cariPesananByNoHp()">Cari Pesanan</button>
+      <button class="btn btn-ghost"   onclick="resetCariHp()">Reset</button>
+    </div>
+
+    <!-- Hasil cari by HP -->
+    <div class="hp-result-panel" id="hp-result-panel">
+      <div class="hp-result-nama" id="hp-result-nama">—</div>
+      <div class="hp-result-sub"  id="hp-result-sub">—</div>
+      <div class="hp-pesanan-list" id="hp-pesanan-list"></div>
+    </div>
+  </div>
+
+  <!-- FORM BUAT PESANAN -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Buat Pesanan Baru</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Pilih Pelanggan</label>
+        <select id="ps-pelanggan"></select>
+      </div>
+      <div class="form-group">
+        <label>Pilih Layanan</label>
+        <select id="ps-layanan"></select>
+      </div>
+      <div class="form-group">
+        <label>Berat (kg)</label>
+        <input type="number" id="ps-berat" placeholder="contoh: 3.5" step="0.5" min="0.5"/>
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="tambah()">Buat Pesanan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABEL PESANAN -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Daftar Semua Pesanan</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+        <tr>
+          <th>ID</th><th>Pelanggan</th><th>Layanan</th><th>Berat</th>
+          <th>Total</th><th>Tipe</th><th>Status</th><th>Aksi</th>
+        </tr>
+        </thead>
+        <tbody id="tbl-pesanan"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Detail Pesanan (pakai getInfo(boolean) via /api/pesanan/detail) -->
+<div class="modal-overlay" id="modal-detail">
+  <div class="modal-box">
+    <div class="modal-title">📋 Detail Pesanan</div>
+    <div id="modal-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="modal-btn-selesai" onclick="selesaikanDariModal()">✓ Tandai Selesai</button>
+      <button class="btn btn-ghost"   onclick="tutupModal()">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = 'http://localhost:8080/api';
+  const token = localStorage.getItem('foundry_token');
+  if (!token) window.location.href = 'login.html';
+
+  function authHeader() { return { 'Authorization': 'Bearer ' + token }; }
+  function logout() { localStorage.removeItem('foundry_token'); window.location.href = 'login.html'; }
+
+  function toast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast ' + type + ' show';
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function rupiah(n) { return 'Rp ' + Number(n).toLocaleString('id-ID'); }
+
+  // ===================================================================
+  // FITUR: Cari semua pesanan by Nomor HP pelanggan
+  // Memanggil /api/pesanan/carinohp yang menggunakan cariByNoHp()
+  // ===================================================================
+  async function cariPesananByNoHp() {
+    const noHp = document.getElementById('hp-input').value.trim();
+    if (!noHp) { toast('Masukkan nomor HP terlebih dahulu!', 'error'); return; }
+
+    try {
+      const res = await fetch(API + '/pesanan/carinohp?noHp=' + encodeURIComponent(noHp), {
+        headers: authHeader()
+      }).then(r => r.json());
+
+      const panel = document.getElementById('hp-result-panel');
+      panel.classList.add('show');
+
+      if (!res.sukses) {
+        document.getElementById('hp-result-nama').textContent = '❌ ' + res.pesan;
+        document.getElementById('hp-result-sub').textContent  = '';
+        document.getElementById('hp-pesanan-list').innerHTML   = '';
+        return;
+      }
+
+      const p = res.pelanggan;
+      document.getElementById('hp-result-nama').textContent =
+        '✅ ' + p.nama + ' (' + p.status + ')';
+      document.getElementById('hp-result-sub').textContent  =
+        'No HP: ' + p.noHp + '   |   ID: ' + p.id;
+
+      const listEl = document.getElementById('hp-pesanan-list');
+      if (res.pesanan.length === 0) {
+        listEl.innerHTML = '<div class="empty-hp">Belum ada pesanan untuk pelanggan ini.</div>';
+        return;
+      }
+
+      listEl.innerHTML = res.pesanan.map(ps => `
+        <div class="hp-pesanan-item">
+          <div class="pi-id">${ps.id}</div>
+          <div class="pi-info">
+            <strong>${ps.namaLayanan}</strong><br>
+            <span style="font-size:12px;color:var(--muted);">${ps.berat} kg</span>
+          </div>
+          <div class="pi-harga">${rupiah(ps.totalHarga)}</div>
+          <span class="badge ${ps.selesai ? 'badge-done' : 'badge-pending'}">${ps.statusKerjaan}</span>
+          ${!ps.selesai
+            ? `<button class="btn btn-primary btn-sm" onclick="selesaikanDariHP('${ps.id}')">✓ Selesaikan</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="lihatDetail('${ps.id}')">Detail</button>`
+          }
+        </div>`).join('');
+
+    } catch(e) {
+      toast('Gagal menghubungi server.', 'error');
+    }
+  }
+
+  function resetCariHp() {
+    document.getElementById('hp-input').value = '';
+    document.getElementById('hp-result-panel').classList.remove('show');
+  }
+
+  // Selesaikan langsung dari panel pencarian HP
+  async function selesaikanDariHP(id) {
+    const res = await fetch(API + '/pesanan', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ id, selesai: 'true' })
+    }).then(r => r.json());
+
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    if (res.sukses) {
+      // Refresh hasil pencarian agar langsung update
+      cariPesananByNoHp();
+      loadPesanan();
+    }
+  }
+
+  // ===================================================================
+  // Modal Detail: pakai /api/pesanan/detail yang menggunakan getInfo(boolean)
+  // ===================================================================
+  let modalPesananId = null;
+  let modalSelesai   = false;
+
+  async function lihatDetail(id) {
+    try {
+      const res = await fetch(API + '/pesanan/detail?id=' + id, { headers: authHeader() }).then(r => r.json());
+      if (!res.sukses) { toast('Gagal ambil detail.', 'error'); return; }
+
+      modalPesananId = res.id;
+      modalSelesai   = res.selesai;
+
+      document.getElementById('modal-content').innerHTML = `
+        <div class="modal-row"><span class="lbl">ID Pesanan</span><code>${res.id}</code></div>
+        <div class="modal-row"><span class="lbl">Pelanggan</span><strong>${res.namaPelanggan}</strong></div>
+        <div class="modal-row"><span class="lbl">Tipe Pelanggan</span>${res.statusPelanggan}</div>
+        <div class="modal-row"><span class="lbl">Layanan</span>${res.namaLayanan}</div>
+        <div class="modal-row"><span class="lbl">Harga/kg</span>${rupiah(res.hargaPerKg)}</div>
+        <div class="modal-row"><span class="lbl">Berat</span>${res.berat} kg</div>
+        <div class="modal-row"><span class="lbl">Total Harga</span><strong style="color:var(--accent)">${rupiah(res.totalHarga)}</strong></div>
+        <div class="modal-row"><span class="lbl">Status</span>
+          <span class="badge ${res.selesai ? 'badge-done' : 'badge-pending'}">${res.statusKerjaan}</span>
+        </div>`;
+
+      // Tombol selesai/pending
+      const btnSelesai = document.getElementById('modal-btn-selesai');
+      if (res.selesai) {
+        btnSelesai.textContent = '↩ Kembalikan ke Pending';
+        btnSelesai.className   = 'btn btn-ghost';
+      } else {
+        btnSelesai.textContent = '✓ Tandai Selesai';
+        btnSelesai.className   = 'btn btn-primary';
+      }
+
+      document.getElementById('modal-detail').classList.add('show');
+
+    } catch(e) {
+      toast('Gagal memuat detail pesanan.', 'error');
+    }
+  }
+
+  async function selesaikanDariModal() {
+    if (!modalPesananId) return;
+    const res = await fetch(API + '/pesanan', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ id: modalPesananId, selesai: String(!modalSelesai) })
+    }).then(r => r.json());
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    tutupModal();
+    loadPesanan();
+  }
+
+  function tutupModal() {
+    document.getElementById('modal-detail').classList.remove('show');
+    modalPesananId = null;
+  }
+
+  // Klik di luar modal = tutup
+  document.getElementById('modal-detail').addEventListener('click', function(e) {
+    if (e.target === this) tutupModal();
+  });
+
+  // ===================================================================
+  // LOAD DROPDOWNS & TABEL
+  // ===================================================================
+  async function loadDropdowns() {
+    const [pelanggan, layanan] = await Promise.all([
+      fetch(API + '/pelanggan', { headers: authHeader() }).then(r => r.json()),
+      fetch(API + '/layanan',   { headers: authHeader() }).then(r => r.json())
+    ]);
+
+    document.getElementById('ps-pelanggan').innerHTML =
+      pelanggan.map(p => `<option value="${p.id}">${p.nama} (${p.status})</option>`).join('');
+
+    document.getElementById('ps-layanan').innerHTML =
+      layanan.map(l => `<option value="${l.id}">${l.nama} — ${rupiah(l.hargaPerKg)}/kg</option>`).join('');
+  }
+
+  async function loadPesanan() {
+    const pesanan = await fetch(API + '/pesanan', { headers: authHeader() }).then(r => r.json());
+    const tbody   = document.getElementById('tbl-pesanan');
+
+    if (pesanan.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon"></div>Belum ada pesanan</div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = pesanan.map(p => `
+      <tr>
+        <td><code>${p.id}</code></td>
+        <td>${p.namaPelanggan}</td>
+        <td>${p.namaLayanan}</td>
+        <td>${p.berat} kg</td>
+        <td>${rupiah(p.totalHarga)}</td>
+        <td><span class="badge ${p.statusPelanggan.startsWith('VIP') ? 'badge-vip' : 'badge-biasa'}">${p.statusPelanggan}</span></td>
+        <td><span class="badge ${p.selesai ? 'badge-done' : 'badge-pending'}">${p.selesai ? 'Selesai' : 'Belum Selesai'}</span></td>
+        <td>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="lihatDetail('${p.id}')">Detail</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleStatus('${p.id}', ${p.selesai})">
+              ${p.selesai ? '↩ Pending' : '✓ Selesai'}
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="hapus('${p.id}')">Hapus</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  async function tambah() {
+    const idPelanggan = document.getElementById('ps-pelanggan').value;
+    const idLayanan   = document.getElementById('ps-layanan').value;
+    const berat       = document.getElementById('ps-berat').value;
+
+    if (!berat || berat <= 0) { toast('Berat harus diisi dan lebih dari 0!', 'error'); return; }
+
+    const res = await fetch(API + '/pesanan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ idPelanggan, idLayanan, berat })
+    }).then(r => r.json());
+
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    if (res.sukses) { document.getElementById('ps-berat').value = ''; loadPesanan(); }
+  }
+
+  async function toggleStatus(id, selesaiSekarang) {
+    const res = await fetch(API + '/pesanan', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ id, selesai: String(!selesaiSekarang) })
+    }).then(r => r.json());
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    loadPesanan();
+  }
+
+  async function hapus(id) {
+    if (!confirm('Hapus pesanan ' + id + '?')) return;
+    const res = await fetch(API + '/pesanan?id=' + id, {
+      method: 'DELETE', headers: authHeader()
+    }).then(r => r.json());
+    toast(res.pesan, res.sukses ? 'success' : 'error');
+    loadPesanan();
+  }
+
+  loadDropdowns();
+  loadPesanan();
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Foundry Laundry — Dashboard</title>
+    <link rel="stylesheet" href="styles.css"/>
+    <style>
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-mini { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
+        .stat-mini .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .stat-mini .value { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; color: var(--accent); }
+        .stat-mini.s2 .value { color: var(--accent2); }
+        .stat-mini.s3 .value { color: #f5a44e; }
+        .stat-mini.s4 .value { color: #a44ef5; }
+        .stat-mini.s5 .value { color: var(--danger); }
+        .warning-bar { background: rgba(245,78,78,.1); border: 1px solid var(--danger); border-radius: 8px;
+                        padding: 10px 16px; color: var(--danger); font-size: 13px; margin-bottom: 16px; display: none; }
+        .warning-bar.show { display: block; }
+        .pendapatan { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">FOUNDRY<span>.</span></div>
+    <div class="logo-sub">Laundry System</div>
+    <a href="index.html"     class="nav-item active"><span class="nav-icon"></span> Dashboard</a>
+    <a href="pelanggan.html" class="nav-item"><span class="nav-icon"></span> Pelanggan</a>
+    <a href="pesanan.html"   class="nav-item"><span class="nav-icon"></span> Pesanan</a>
+    <div class="sidebar-bottom">
+        <button class="btn btn-danger btn-sm" onclick="logout()" style="width:100%;"> Logout</button>
+        <div style="margin-top:8px;">Foundry</div>
+    </div>
+</aside>
+
+<main class="main fade-in">
+    <div class="page-header">
+        <h1 class="page-title">Selamat Datang di <span>Foundry</span></h1>
+    </div>
+
+    <!-- Peringatan kalau data masih kosong (pakai isEmpty() dari backend) -->
+    <div class="warning-bar" id="warn-pelanggan">⚠️ Belum ada pelanggan terdaftar. Silakan tambah pelanggan terlebih dahulu.</div>
+    <div class="warning-bar" id="warn-pesanan">⚠️ Belum ada pesanan masuk hari ini.</div>
+
+    <!-- Stats utama -->
+    <div class="stats-grid">
+        <div class="stat-mini">
+            <div class="label">Total Pelanggan</div>
+            <div class="value" id="stat-pelanggan">—</div>
+            <div class="pendapatan" id="stat-vip-biasa">— VIP / — Biasa</div>
+        </div>
+        <div class="stat-mini s2">
+            <div class="label">Total Pesanan</div>
+            <div class="value" id="stat-pesanan">—</div>
+        </div>
+        <div class="stat-mini s3">
+            <div class="label">Pesanan Selesai</div>
+            <div class="value" id="stat-selesai">—</div>
+        </div>
+        <div class="stat-mini s4">
+            <div class="label">Menunggu Selesai</div>
+            <div class="value" id="stat-pending">—</div>
+        </div>
+        <div class="stat-mini s5">
+            <div class="label">Total Pendapatan</div>
+            <div class="value" id="stat-pendapatan">—</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <span class="card-title">Pesanan Terbaru</span>
+            <a href="pesanan.html" class="btn btn-ghost btn-sm">Lihat Semua →</a>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr><th>ID</th><th>Pelanggan</th><th>Layanan</th><th>Berat</th><th>Total</th><th>Status</th></tr>
+                </thead>
+                <tbody id="tbl-dashboard"></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const API = 'http://localhost:8080/api';
+    const token = localStorage.getItem('foundry_token');
+    if (!token) window.location.href = 'login.html';
+
+    function authHeader() { return { 'Authorization': 'Bearer ' + token }; }
+    function logout() { localStorage.removeItem('foundry_token'); window.location.href = 'login.html'; }
+
+    function toast(msg, type = 'success') {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.className = 'toast ' + type + ' show';
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function rupiah(n) { return 'Rp ' + Number(n).toLocaleString('id-ID'); }
+
+    async function loadDashboard() {
+        try {
+            // Gunakan endpoint /api/stats yang memakai isEmpty() dari controller
+            const [stats, pesanan] = await Promise.all([
+                fetch(API + '/stats',   { headers: authHeader() }).then(r => r.json()),
+                fetch(API + '/pesanan', { headers: authHeader() }).then(r => r.json())
+            ]);
+
+            // Tampilkan stats dari endpoint baru
+            document.getElementById('stat-pelanggan').textContent  = stats.totalPelanggan;
+            document.getElementById('stat-vip-biasa').textContent  = stats.pelangganVIP + ' VIP / ' + stats.pelangganBiasa + ' Biasa';
+            document.getElementById('stat-pesanan').textContent    = stats.totalPesanan;
+            document.getElementById('stat-selesai').textContent    = stats.pesananSelesai;
+            document.getElementById('stat-pending').textContent    = stats.pesananPending;
+            document.getElementById('stat-pendapatan').textContent = rupiah(stats.totalPendapatan);
+
+            // Tampilkan warning kalau isEmpty() = true
+            if (stats.pelangganKosong) document.getElementById('warn-pelanggan').classList.add('show');
+            if (stats.pesananKosong)   document.getElementById('warn-pesanan').classList.add('show');
+
+            const tbody = document.getElementById('tbl-dashboard');
+            if (pesanan.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon"></div>Belum ada pesanan</div></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = pesanan.slice(-5).reverse().map(p => `
+              <tr>
+                <td><code>${p.id}</code></td>
+                <td>${p.namaPelanggan}</td>
+                <td>${p.namaLayanan}</td>
+                <td>${p.berat} kg</td>
+                <td>${rupiah(p.totalHarga)}</td>
+                <td><span class="badge ${p.selesai ? 'badge-done' : 'badge-pending'}">${p.selesai ? 'Selesai' : 'Belum Selesai'}</span></td>
+              </tr>`).join('');
+
+        } catch (e) {
+            toast('Gagal terhubung ke server Java. Pastikan sudah dijalankan.', 'error');
+        }
+    }
+
+    loadDashboard();
+</script>
+</body>
+</html>
